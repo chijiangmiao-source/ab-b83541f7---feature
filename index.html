@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>束线联锁控制器规程升级 · 静止输出复核</title>
+<style>
+* { box-sizing: border-box; }
+body { font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; background: #f4f6f8; color: #1c2530; }
+header { background: #14324f; color: #fff; padding: 18px 28px; }
+header h1 { margin: 0 0 6px; font-size: 20px; }
+header p { margin: 0; font-size: 13px; opacity: .88; }
+main { padding: 20px 28px 48px; max-width: 1280px; margin: 0 auto; }
+.panels { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+fieldset { border: 1px solid #c9d4de; border-radius: 8px; background: #fff; padding: 12px 16px 16px; margin: 0; }
+legend { font-weight: 600; padding: 0 6px; }
+label { display: block; font-size: 13px; margin: 10px 0 4px; color: #33414f; }
+input[type=text], textarea { width: 100%; border: 1px solid #b9c6d2; border-radius: 6px; padding: 7px 9px; font: 13px/1.5 Consolas, "Courier New", monospace; background: #fbfdfe; }
+textarea { resize: vertical; }
+.hint { font-size: 13px; color: #44555f; background: #eaf1f7; border: 1px solid #cfdeeb; border-radius: 8px; padding: 10px 14px; line-height: 1.8; }
+.hint code, code { background: #fff; padding: 1px 5px; border-radius: 4px; border: 1px solid #d5e0e8; font-family: Consolas, monospace; }
+.actions { margin: 14px 0; display: flex; gap: 10px; flex-wrap: wrap; }
+button { border: 0; border-radius: 6px; padding: 9px 16px; font-size: 14px; cursor: pointer; background: #dbe5ee; color: #14324f; }
+button:hover { filter: brightness(.94); }
+#submit { background: #1668b4; color: #fff; font-weight: 600; }
+section#errors, section#result { background: #fff; border: 1px solid #c9d4de; border-radius: 8px; padding: 14px 18px; margin-top: 14px; }
+section#errors { border-color: #e3b6b6; background: #fdf3f3; }
+h2 { font-size: 17px; margin: 4px 0 10px; }
+h2.ok { color: #137a3f; }
+h2.bad, .bad { color: #b3261e; }
+h3 { font-size: 14px; margin: 16px 0 6px; }
+ol.hist { display: flex; gap: 8px; list-style: none; padding: 0; margin: 6px 0; flex-wrap: wrap; align-items: center; }
+ol.hist li { background: #eef3f8; border: 1px solid #cfdae6; border-radius: 6px; padding: 4px 10px; }
+ol.hist li + li::before { content: "→"; margin-right: 8px; color: #7b8b99; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { border: 1px solid #d3dde5; padding: 6px 10px; text-align: left; }
+th { background: #eef3f8; }
+#errors ul { margin: 6px 0; padding-left: 20px; }
+#errors li { margin: 4px 0; font-size: 13px; }
+.muted { color: #66788a; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>束线联锁控制器规程升级 · 静止输出复核（ioco）</h1>
+  <p>按 ioco 语义核对候选规程：纳入内部静默迁移（tau）与可观察静止（δ）。候选在旧规程可执行历史后可能给出的每项输出，都必须为旧规程在同一历史允许。</p>
+</header>
+<main>
+  <div class="panels">
+    <fieldset>
+      <legend>旧规程（规约）</legend>
+      <label for="old-locations">有限位置（逗号或空白分隔）</label>
+      <input type="text" id="old-locations" placeholder="如：Idle Busy Done">
+      <label for="old-initial">初始位置</label>
+      <input type="text" id="old-initial" placeholder="如：Idle">
+      <label for="old-inputs">输入命令（逗号或空白分隔）</label>
+      <input type="text" id="old-inputs" placeholder="如：open close">
+      <label for="old-transitions">迁移（每行一条：源 -&gt; 目标 : 标签）</label>
+      <textarea id="old-transitions" rows="9" placeholder="Idle -> Busy : ?open&#10;Busy -> Done : !ack&#10;Done -> Idle : ?close"></textarea>
+    </fieldset>
+    <fieldset>
+      <legend>候选规程（实现）</legend>
+      <label for="cand-locations">有限位置（逗号或空白分隔）</label>
+      <input type="text" id="cand-locations" placeholder="如：L0 L1 L2">
+      <label for="cand-initial">初始位置</label>
+      <input type="text" id="cand-initial" placeholder="如：L0">
+      <label for="cand-inputs">输入命令（逗号或空白分隔）</label>
+      <input type="text" id="cand-inputs" placeholder="如：open close">
+      <label for="cand-transitions">迁移（每行一条：源 -&gt; 目标 : 标签）</label>
+      <textarea id="cand-transitions" rows="9" placeholder="L0 -> L1 : ?open&#10;L1 -> L2 : !ack&#10;L2 -> L0 : ?close"></textarea>
+    </fieldset>
+  </div>
+  <p class="hint">
+    标签写法：<code>?命令</code> 输入迁移（命令须先在上方的输入命令中声明）；<code>!名称</code> 输出迁移；
+    <code>tau</code> 内部静默迁移；<code>delta</code> 将输出明确标记为“静止”（δ）。
+    没有任何输出 / 静默 / 静止迁移的位置被视为可观察静止。
+    判定不依赖位置名称对应，不做有限长度枚举，也不做随机回放。
+  </p>
+  <div class="actions">
+    <button id="submit" type="button">提交复核</button>
+    <button id="fill-counter" type="button">填入反例：静默后报警</button>
+    <button id="fill-renamed" type="button">填入示例：仅位置改名（应判一致）</button>
+    <button id="clear" type="button">清空结论</button>
+  </div>
+  <section id="errors" hidden></section>
+  <section id="result" hidden></section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const FIELD_NAMES = {locations: "位置", initial: "初始位置", inputs: "输入命令", transitions: "迁移", "-": ""};
+const SIDE_NAMES = {old: "旧规程", candidate: "候选规程"};
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+}
+
+function readSpec(prefix) {
+  return {
+    locations: $(prefix + "-locations").value,
+    initial: $(prefix + "-initial").value,
+    inputs: $(prefix + "-inputs").value,
+    transitions: $(prefix + "-transitions").value
+  };
+}
+
+function clearAll() {
+  for (const id of ["errors", "result"]) {
+    $(id).hidden = true;
+    $(id).innerHTML = "";
+  }
+}
+
+function showErrors(errors) {
+  const box = $("errors");
+  box.hidden = false;
+  box.innerHTML = "<h2 class='bad'>录入有误（先前结论已清除）</h2><ul>" + errors.map(e => {
+    const side = SIDE_NAMES[e.side] || "";
+    const field = FIELD_NAMES[e.field] || "";
+    const line = e.line ? ` 第 ${e.line} 行` : "";
+    return `<li><b>${esc(side)}</b>${field ? " · " + esc(field) : ""}${esc(line)}：${esc(e.message)}</li>`;
+  }).join("") + "</ul>";
+}
+
+function showResult(r) {
+  const box = $("result");
+  box.hidden = false;
+  if (r.verdict === "consistent") {
+    box.innerHTML = `<h2 class="ok">结论：一致 —— 候选规程 ioco 符合旧规程</h2>
+      <p class="muted">共探索 ${r.explored} 个状态集对，候选在每个可执行历史后的输出（含静止 δ）均被旧规程允许。</p>`;
+    return;
+  }
+  const hist = r.history.map(h => `<li><code>${esc(h)}</code></li>`).join("");
+  const rows = r.steps.map((s, i) => `<tr><td>${i}</td><td>${s.label ? "<code>" + esc(s.label) + "</code>" : "（初始闭包）"}</td>
+    <td>{ ${s.candidate.map(esc).join(", ")} }</td><td>{ ${s.old.map(esc).join(", ")} }</td></tr>`).join("");
+  const outs = arr => arr.length ? arr.map(o => `<code>${esc(o)}</code>`).join(" ") : "（无）";
+  box.innerHTML = `
+    <h2 class="bad">结论：不一致 —— 候选规程越出旧规程允许范围</h2>
+    <h3>最短历史（按 ASCII 顺序确定）</h3>
+    <ol class="hist">${hist}</ol>
+    <h3>两侧逐步闭包状态集</h3>
+    <table><thead><tr><th>步骤</th><th>经标签</th><th>候选闭包</th><th>旧规程闭包</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    <h3>分歧点输出</h3>
+    <p>候选输出：${outs(r.candidateOutputs)}</p>
+    <p>旧规程允许输出：${outs(r.oldOutputs)}</p>
+    <p>违规输出：<code class="bad">${esc(r.offendingOutput)}</code></p>`;
+}
+
+async function submit() {
+  clearAll();
+  let data;
+  try {
+    const resp = await fetch("/api/check", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({old: readSpec("old"), candidate: readSpec("cand")})
+    });
+    data = await resp.json();
+  } catch (e) {
+    showErrors([{side: "-", field: "-", line: null, message: "接口调用失败：" + e}]);
+    return;
+  }
+  if (!data.ok) {
+    showErrors(data.errors || []);
+    return;
+  }
+  showResult(data.result);
+}
+
+function fill(oldSpec, candSpec) {
+  for (const [prefix, spec] of [["old", oldSpec], ["cand", candSpec]]) {
+    for (const k of ["locations", "initial", "inputs", "transitions"]) {
+      $(prefix + "-" + k).value = spec[k];
+    }
+  }
+  clearAll();
+}
+
+$("submit").addEventListener("click", submit);
+$("clear").addEventListener("click", clearAll);
+$("fill-counter").addEventListener("click", () => fill(
+  {locations: "S0 S1", initial: "S0", inputs: "cmd",
+   transitions: "S0 -> S1 : ?cmd"},
+  {locations: "A B C", initial: "A", inputs: "cmd",
+   transitions: "A -> B : ?cmd\nB -> C : tau\nC -> C : !alarm"}
+));
+$("fill-renamed").addEventListener("click", () => fill(
+  {locations: "Idle Busy Done", initial: "Idle", inputs: "open close",
+   transitions: "Idle -> Busy : ?open\nBusy -> Done : !ack\nDone -> Idle : ?close"},
+  {locations: "L0 L1 L2", initial: "L0", inputs: "open close",
+   transitions: "L0 -> L1 : ?open\nL1 -> L2 : !ack\nL2 -> L0 : ?close"}
+));
+</script>
+</body>
+</html>

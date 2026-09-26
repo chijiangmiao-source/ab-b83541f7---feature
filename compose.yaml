@@ -1,0 +1,27 @@
+name: ioco-review
+
+services:
+  web:
+    build: .
+    image: ioco-review-web:latest
+    environment:
+      PORT: "${PORT:-8080}"
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys,urllib.request;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8080')+'/healthz',timeout=2).status==200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  verify:
+    build: .
+    image: ioco-review-web:latest
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      WEB_URL: "http://web:${PORT:-8080}"
+    command: ["python", "verify.py"]
+    restart: "no"
