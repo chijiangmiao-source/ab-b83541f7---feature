@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>束线联锁控制器规程升级 · 静止输出复核</title>
+<title>束线联锁控制器规程升级 · 静止输出复核与离线测试套件</title>
 <style>
 * { box-sizing: border-box; }
 body { font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; background: #f4f6f8; color: #1c2530; }
@@ -23,28 +23,35 @@ textarea { resize: vertical; }
 .actions { margin: 14px 0; display: flex; gap: 10px; flex-wrap: wrap; }
 button { border: 0; border-radius: 6px; padding: 9px 16px; font-size: 14px; cursor: pointer; background: #dbe5ee; color: #14324f; }
 button:hover { filter: brightness(.94); }
-#submit { background: #1668b4; color: #fff; font-weight: 600; }
-section#errors, section#result { background: #fff; border: 1px solid #c9d4de; border-radius: 8px; padding: 14px 18px; margin-top: 14px; }
-section#errors { border-color: #e3b6b6; background: #fdf3f3; }
+#submit, #generate { background: #1668b4; color: #fff; font-weight: 600; }
+#replay { background: #0f6e5d; color: #fff; font-weight: 600; }
+section#errors, section#result, section#suite, section#suite-errors, section#replay-result { background: #fff; border: 1px solid #c9d4de; border-radius: 8px; padding: 14px 18px; margin-top: 14px; }
+section#errors, section#suite-errors { border-color: #e3b6b6; background: #fdf3f3; }
 h2 { font-size: 17px; margin: 4px 0 10px; }
 h2.ok { color: #137a3f; }
 h2.bad, .bad { color: #b3261e; }
+h2.warn, .warn { color: #9a6a00; }
 h3 { font-size: 14px; margin: 16px 0 6px; }
 ol.hist { display: flex; gap: 8px; list-style: none; padding: 0; margin: 6px 0; flex-wrap: wrap; align-items: center; }
 ol.hist li { background: #eef3f8; border: 1px solid #cfdae6; border-radius: 6px; padding: 4px 10px; }
 ol.hist li + li::before { content: "→"; margin-right: 8px; color: #7b8b99; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { border: 1px solid #d3dde5; padding: 6px 10px; text-align: left; }
+th, td { border: 1px solid #d3dde5; padding: 6px 10px; text-align: left; vertical-align: top; }
 th { background: #eef3f8; }
-#errors ul { margin: 6px 0; padding-left: 20px; }
-#errors li { margin: 4px 0; font-size: 13px; }
+#errors ul, #suite-errors ul { margin: 6px 0; padding-left: 20px; }
+#errors li, #suite-errors li { margin: 4px 0; font-size: 13px; }
 .muted { color: #66788a; font-size: 13px; }
+.step-chip { display: inline-block; background: #eef3f8; border: 1px solid #cfdae6; border-radius: 6px; padding: 2px 8px; margin: 2px 4px 2px 0; }
+.step-chip .allow { color: #0f6e5d; }
+.meta { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; margin: 6px 0 10px; }
+.meta b { color: #14324f; }
+hr.sep { border: 0; border-top: 2px solid #d3dde5; margin: 28px 0 18px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>束线联锁控制器规程升级 · 静止输出复核（ioco）</h1>
-  <p>按 ioco 语义核对候选规程：纳入内部静默迁移（tau）与可观察静止（δ）。候选在旧规程可执行历史后可能给出的每项输出，都必须为旧规程在同一历史允许。</p>
+  <h1>束线联锁控制器规程升级 · 静止输出复核（ioco）与离线一致性测试套件（W-method）</h1>
+  <p>上半部分按 ioco 语义核对候选规程；下半部分由旧规程生成有限离线一致性测试套件，并回放逐轮“发送命令、收到输出或静止”的现场记录。</p>
 </header>
 <main>
   <div class="panels">
@@ -85,10 +92,49 @@ th { background: #eef3f8; }
   </div>
   <section id="errors" hidden></section>
   <section id="result" hidden></section>
+
+  <hr class="sep">
+
+  <h2>离线一致性测试套件（W-method）与现场记录回放</h2>
+  <p class="hint">
+    基于上方“旧规程”录入：生成器先把含内部静默（tau）与可观察静止（δ）的语义确定化为
+    “命令 → 观察”确定机，仅在每个闭包允许时发出命令；若同一命令后存在多个可观察结果，
+    拒绝生成而不任选一条。对可生成的规程，以<strong>状态覆盖、迁移覆盖与区分后缀</strong>
+    构造 W-method 套件：任何不超过所填上界的确定实现，通过全部用例当且仅当它在该范围内
+    与规程一致。套件不使用固定深度枚举、随机命令或位置名称替代。
+  </p>
+  <div class="panels">
+    <fieldset>
+      <legend>套件生成</legend>
+      <label for="max-states">现场控制器的最大稳定位置数（上界 m）</label>
+      <input type="text" id="max-states" placeholder="如：2">
+      <div class="actions">
+        <button id="generate" type="button">生成测试套件</button>
+        <button id="fill-suite-demo" type="button">填入示例：静默闭包后静止</button>
+        <button id="fill-suite-nondet" type="button">填入反例：非确定（应拒绝生成）</button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>现场记录回放</legend>
+      <label for="replay-suite">测试标识（生成后自动填入；过期标识将被拒绝）</label>
+      <input type="text" id="replay-suite" placeholder="如：S-…………">
+      <label for="replay-case">用例编号</label>
+      <input type="text" id="replay-case" placeholder="如：T001">
+      <label for="replay-record">现场记录（每行一轮：命令 观察；观察为 !输出 或 δ）</label>
+      <textarea id="replay-record" rows="5" placeholder="cmd δ"></textarea>
+      <div class="actions">
+        <button id="replay" type="button">回放记录</button>
+      </div>
+    </fieldset>
+  </div>
+  <section id="suite-errors" hidden></section>
+  <section id="suite" hidden></section>
+  <section id="replay-result" hidden></section>
 </main>
 <script>
 const $ = id => document.getElementById(id);
-const FIELD_NAMES = {locations: "位置", initial: "初始位置", inputs: "输入命令", transitions: "迁移", "-": ""};
+const FIELD_NAMES = {locations: "位置", initial: "初始位置", inputs: "输入命令", transitions: "迁移",
+  maxStates: "最大稳定位置数", suite: "测试标识", case: "用例编号", record: "现场记录", "-": ""};
 const SIDE_NAMES = {old: "旧规程", candidate: "候选规程"};
 
 function esc(s) {
@@ -104,22 +150,40 @@ function readSpec(prefix) {
   };
 }
 
+function hideBox(id) {
+  $(id).hidden = true;
+  $(id).innerHTML = "";
+}
+
 function clearAll() {
-  for (const id of ["errors", "result"]) {
-    $(id).hidden = true;
-    $(id).innerHTML = "";
-  }
+  for (const id of ["errors", "result", "suite-errors", "suite", "replay-result"]) hideBox(id);
+}
+
+function clearSuite() {
+  for (const id of ["suite-errors", "suite", "replay-result"]) hideBox(id);
+}
+
+function errorListHtml(errors) {
+  return "<ul>" + errors.map(e => {
+    const side = SIDE_NAMES[e.side] || "";
+    const field = FIELD_NAMES[e.field] || e.field || "";
+    const line = e.line ? ` 第 ${e.line} 行` : "";
+    return `<li><b>${esc(side)}</b>${field ? " · " + esc(field) : ""}${esc(line)}：${esc(e.message)}</li>`;
+  }).join("") + "</ul>";
 }
 
 function showErrors(errors) {
   const box = $("errors");
   box.hidden = false;
-  box.innerHTML = "<h2 class='bad'>录入有误（先前结论已清除）</h2><ul>" + errors.map(e => {
-    const side = SIDE_NAMES[e.side] || "";
-    const field = FIELD_NAMES[e.field] || "";
-    const line = e.line ? ` 第 ${e.line} 行` : "";
-    return `<li><b>${esc(side)}</b>${field ? " · " + esc(field) : ""}${esc(line)}：${esc(e.message)}</li>`;
-  }).join("") + "</ul>";
+  box.innerHTML = "<h2 class='bad'>录入有误（先前结论已清除）</h2>" + errorListHtml(errors);
+}
+
+function showSuiteErrors(errors) {
+  hideBox("suite");
+  hideBox("replay-result");
+  const box = $("suite-errors");
+  box.hidden = false;
+  box.innerHTML = "<h2 class='bad'>套件生成 / 回放被拒绝（旧回放结果已清除）</h2>" + errorListHtml(errors);
 }
 
 function showResult(r) {
@@ -147,16 +211,20 @@ function showResult(r) {
     <p>违规输出：<code class="bad">${esc(r.offendingOutput)}</code></p>`;
 }
 
+async function postJson(url, payload) {
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  });
+  return await resp.json();
+}
+
 async function submit() {
   clearAll();
   let data;
   try {
-    const resp = await fetch("/api/check", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({old: readSpec("old"), candidate: readSpec("cand")})
-    });
-    data = await resp.json();
+    data = await postJson("/api/check", {old: readSpec("old"), candidate: readSpec("cand")});
   } catch (e) {
     showErrors([{side: "-", field: "-", line: null, message: "接口调用失败：" + e}]);
     return;
@@ -166,6 +234,95 @@ async function submit() {
     return;
   }
   showResult(data.result);
+}
+
+function stepChip(s, i) {
+  const allow = s.allowed.map(a => `<code class="allow">${esc(a)}</code>`).join(" ");
+  return `<span class="step-chip">${i + 1}. <code>?${esc(s.command)}</code> → 允许 ${allow}</span>`;
+}
+
+function showSuite(r) {
+  const box = $("suite");
+  box.hidden = false;
+  const w = r.distinguishing.length
+    ? r.distinguishing.map(seq => `<code>${seq.map(x => "?" + esc(x)).join(" ")}</code>`).join(" ")
+    : '<span class="muted">（单状态机，无需区分后缀）</span>';
+  const rows = r.cases.map(c =>
+    `<tr><td><code>${esc(c.id)}</code></td><td>${c.steps.map(stepChip).join("")}</td></tr>`).join("");
+  box.innerHTML = `
+    <h2 class="ok">套件已生成</h2>
+    <div class="meta">
+      <span>测试标识：<b><code>${esc(r.suite)}</code></b></span>
+      <span>规程稳定状态数 n：<b>${r.states}</b></span>
+      <span>上界 m：<b>${r.bound}</b></span>
+      <span>用例数：<b>${r.caseCount}</b></span>
+    </div>
+    <p class="muted">区分后缀 W：${w}　·　任何不超过 ${r.bound} 个稳定状态的确定实现，通过全部用例当且仅当它在该范围内与旧规程一致。</p>
+    <table><thead><tr><th>用例编号</th><th>步骤（命令 → 每步允许观察）</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+  $("replay-suite").value = r.suite;
+}
+
+function showReplay(r) {
+  const box = $("replay-result");
+  box.hidden = false;
+  if (r.verdict === "passed") {
+    box.innerHTML = `<h2 class="ok">回放通过 —— 记录与用例 <code>${esc(r.case)}</code> 全部 ${r.totalRounds} 轮一致</h2>
+      <p class="muted">逐轮“发送命令、收到输出或静止”均落在每步允许观察内。</p>`;
+    return;
+  }
+  if (r.verdict === "incomplete") {
+    box.innerHTML = `<h2 class="warn">记录不完整 —— 已核对 ${r.checkedRounds} / ${r.totalRounds} 轮，用例 <code>${esc(r.case)}</code> 尚有后续步骤未执行</h2>`;
+    return;
+  }
+  const f = r.firstFailure;
+  const allowed = f.allowed && f.allowed.length
+    ? f.allowed.map(a => `<code>${esc(a)}</code>`).join(" ") : "（用例已终止）";
+  box.innerHTML = `
+    <h2 class="bad">回放失败 —— 首个失败轮次：第 ${f.round} 轮</h2>
+    <table><thead><tr><th>轮次</th><th>记录命令</th><th>记录观察</th><th>该步允许观察</th><th>原因</th></tr></thead>
+    <tbody><tr><td>${f.round}</td><td><code>?${esc(f.command)}</code></td>
+      <td><code class="bad">${esc(f.observation)}</code></td><td>${allowed}</td>
+      <td>${esc(f.message)}</td></tr></tbody></table>`;
+}
+
+async function generate() {
+  clearSuite();
+  const raw = $("max-states").value.trim();
+  let data;
+  try {
+    data = await postJson("/api/generate", {old: readSpec("old"), maxStates: raw === "" ? null : raw});
+  } catch (e) {
+    showSuiteErrors([{side: "-", field: "-", line: null, message: "接口调用失败：" + e}]);
+    return;
+  }
+  if (!data.ok) {
+    showSuiteErrors(data.errors || []);
+    return;
+  }
+  hideBox("suite-errors");
+  showSuite(data.result);
+}
+
+async function replay() {
+  hideBox("replay-result");
+  hideBox("suite-errors");
+  let data;
+  try {
+    data = await postJson("/api/replay", {
+      suite: $("replay-suite").value,
+      case: $("replay-case").value,
+      record: $("replay-record").value
+    });
+  } catch (e) {
+    showSuiteErrors([{side: "-", field: "-", line: null, message: "接口调用失败：" + e}]);
+    return;
+  }
+  if (!data.ok) {
+    showSuiteErrors(data.errors || []);
+    return;
+  }
+  showReplay(data.result);
 }
 
 function fill(oldSpec, candSpec) {
@@ -178,6 +335,8 @@ function fill(oldSpec, candSpec) {
 }
 
 $("submit").addEventListener("click", submit);
+$("generate").addEventListener("click", generate);
+$("replay").addEventListener("click", replay);
 $("clear").addEventListener("click", clearAll);
 $("fill-counter").addEventListener("click", () => fill(
   {locations: "S0 S1", initial: "S0", inputs: "cmd",
@@ -191,6 +350,18 @@ $("fill-renamed").addEventListener("click", () => fill(
   {locations: "L0 L1 L2", initial: "L0", inputs: "open close",
    transitions: "L0 -> L1 : ?open\nL1 -> L2 : !ack\nL2 -> L0 : ?close"}
 ));
+$("fill-suite-demo").addEventListener("click", () => {
+  fill({locations: "S0 S1 S2", initial: "S0", inputs: "cmd",
+        transitions: "S0 -> S1 : ?cmd\nS1 -> S2 : tau"},
+       {locations: "", initial: "", inputs: "", transitions: ""});
+  $("max-states").value = "2";
+});
+$("fill-suite-nondet").addEventListener("click", () => {
+  fill({locations: "S0 S1 S2", initial: "S0", inputs: "cmd",
+        transitions: "S0 -> S1 : ?cmd\nS0 -> S2 : ?cmd\nS1 -> S1 : !x\nS2 -> S2 : !y"},
+       {locations: "", initial: "", inputs: "", transitions: ""});
+  $("max-states").value = "3";
+});
 </script>
 </body>
 </html>
