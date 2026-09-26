@@ -16,19 +16,21 @@ main { padding: 20px 28px 48px; max-width: 1280px; margin: 0 auto; }
 fieldset { border: 1px solid #c9d4de; border-radius: 8px; background: #fff; padding: 12px 16px 16px; margin: 0; }
 legend { font-weight: 600; padding: 0 6px; }
 label { display: block; font-size: 13px; margin: 10px 0 4px; color: #33414f; }
-input[type=text], textarea { width: 100%; border: 1px solid #b9c6d2; border-radius: 6px; padding: 7px 9px; font: 13px/1.5 Consolas, "Courier New", monospace; background: #fbfdfe; }
+input[type=text], input[type=number], select, textarea { width: 100%; border: 1px solid #b9c6d2; border-radius: 6px; padding: 7px 9px; font: 13px/1.5 Consolas, "Courier New", monospace; background: #fbfdfe; }
+input[type=number] { width: 160px; }
 textarea { resize: vertical; }
 .hint { font-size: 13px; color: #44555f; background: #eaf1f7; border: 1px solid #cfdeeb; border-radius: 8px; padding: 10px 14px; line-height: 1.8; }
 .hint code, code { background: #fff; padding: 1px 5px; border-radius: 4px; border: 1px solid #d5e0e8; font-family: Consolas, monospace; }
 .actions { margin: 14px 0; display: flex; gap: 10px; flex-wrap: wrap; }
 button { border: 0; border-radius: 6px; padding: 9px 16px; font-size: 14px; cursor: pointer; background: #dbe5ee; color: #14324f; }
 button:hover { filter: brightness(.94); }
-#submit { background: #1668b4; color: #fff; font-weight: 600; }
-section#errors, section#result { background: #fff; border: 1px solid #c9d4de; border-radius: 8px; padding: 14px 18px; margin-top: 14px; }
-section#errors { border-color: #e3b6b6; background: #fdf3f3; }
+#submit, #gen-suite, #run-replay { background: #1668b4; color: #fff; font-weight: 600; }
+section#errors, section#result, section#suite, section#replay-result { background: #fff; border: 1px solid #c9d4de; border-radius: 8px; padding: 14px 18px; margin-top: 14px; }
+section#errors, section#suite-errors { border-color: #e3b6b6; background: #fdf3f3; }
 h2 { font-size: 17px; margin: 4px 0 10px; }
 h2.ok { color: #137a3f; }
 h2.bad, .bad { color: #b3261e; }
+h2.warn { color: #9a6a00; }
 h3 { font-size: 14px; margin: 16px 0 6px; }
 ol.hist { display: flex; gap: 8px; list-style: none; padding: 0; margin: 6px 0; flex-wrap: wrap; align-items: center; }
 ol.hist li { background: #eef3f8; border: 1px solid #cfdae6; border-radius: 6px; padding: 4px 10px; }
@@ -36,15 +38,15 @@ ol.hist li + li::before { content: "→"; margin-right: 8px; color: #7b8b99; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { border: 1px solid #d3dde5; padding: 6px 10px; text-align: left; }
 th { background: #eef3f8; }
-#errors ul { margin: 6px 0; padding-left: 20px; }
-#errors li { margin: 4px 0; font-size: 13px; }
+#errors ul, #suite-errors ul { margin: 6px 0; padding-left: 20px; }
+#errors li, #suite-errors li { margin: 4px 0; font-size: 13px; }
 .muted { color: #66788a; font-size: 13px; }
 </style>
 </head>
 <body>
 <header>
   <h1>束线联锁控制器规程升级 · 静止输出复核（ioco）</h1>
-  <p>按 ioco 语义核对候选规程：纳入内部静默迁移（tau）与可观察静止（δ）。候选在旧规程可执行历史后可能给出的每项输出，都必须为旧规程在同一历史允许。</p>
+  <p>按 ioco 语义核对候选规程：纳入内部静默迁移（tau）与可观察静止（δ）。候选在旧规程可执行历史后可能给出的每项输出，都必须为旧规程在同一历史允许。亦可仅据旧规程生成离线一致性测试套件（W-method），回放现场记录确认候选控制器是否已暴露行为越界。</p>
 </header>
 <main>
   <div class="panels">
@@ -85,10 +87,41 @@ th { background: #eef3f8; }
   </div>
   <section id="errors" hidden></section>
   <section id="result" hidden></section>
+
+  <section id="suite">
+    <h2>离线一致性测试套件（W-method）</h2>
+    <p class="muted">
+      仅据上方“旧规程”生成：先确定化（含 tau 闭包与可观察静止 δ），机器状态为稳定闭包，
+      仅在每个闭包位置都允许时发出命令；若同一命令后存在多个可观察结果，将拒绝生成而不任选一条。
+      套件由状态覆盖、迁移覆盖与区分后缀构成：任何不超过所填上界的确定实现，
+      通过全部用例才可获得该范围内的一致结论。修改旧规程后请重新生成套件（旧标识随即过期）。
+    </p>
+    <label for="max-states">现场控制器最大稳定位置数</label>
+    <input type="number" id="max-states" min="1" step="1" value="4">
+    <div class="actions">
+      <button id="gen-suite" type="button">生成测试套件</button>
+      <button id="fill-suite" type="button">填入示例：套件与回放</button>
+    </div>
+    <div id="suite-summary"></div>
+    <div id="suite-cases"></div>
+    <h3>现场记录回放</h3>
+    <p class="muted">每行一轮：<code>命令 观察</code>（命令可写作 <code>?cmd</code> 或 <code>cmd</code>；观察为 <code>!名称</code> 或 <code>δ</code>）。</p>
+    <label for="replay-case">测试用例</label>
+    <select id="replay-case"></select>
+    <label for="replay-rounds">现场记录（逐轮：发送命令、收到输出或静止）</label>
+    <textarea id="replay-rounds" rows="5" placeholder="?cmd δ"></textarea>
+    <div class="actions">
+      <button id="run-replay" type="button">回放记录</button>
+    </div>
+    <section id="replay-result" hidden></section>
+    <section id="suite-errors" hidden></section>
+  </section>
 </main>
 <script>
 const $ = id => document.getElementById(id);
-const FIELD_NAMES = {locations: "位置", initial: "初始位置", inputs: "输入命令", transitions: "迁移", "-": ""};
+const FIELD_NAMES = {locations: "位置", initial: "初始位置", inputs: "输入命令", transitions: "迁移",
+                     maxStates: "最大稳定位置数", suiteId: "套件标识", caseId: "用例编号",
+                     rounds: "现场记录", "-": ""};
 const SIDE_NAMES = {old: "旧规程", candidate: "候选规程"};
 
 function esc(s) {
@@ -191,6 +224,159 @@ $("fill-renamed").addEventListener("click", () => fill(
   {locations: "L0 L1 L2", initial: "L0", inputs: "open close",
    transitions: "L0 -> L1 : ?open\nL1 -> L2 : !ack\nL2 -> L0 : ?close"}
 ));
+
+// ---------------------------------------------------------------- 测试套件与回放
+
+const SUITE = {id: null};
+
+function clearReplay() {
+  const box = $("replay-result");
+  box.hidden = true;
+  box.innerHTML = "";
+}
+
+function showSuiteErrors(errors) {
+  clearReplay();  // 拒绝时清除旧回放结果
+  const box = $("suite-errors");
+  box.hidden = false;
+  box.innerHTML = "<h2 class='bad'>请求被拒绝（先前回放结果已清除）</h2><ul>" + errors.map(e => {
+    const side = SIDE_NAMES[e.side] || "";
+    const field = FIELD_NAMES[e.field] || esc(e.field || "");
+    const line = e.line ? ` 第 ${e.line} 行` : "";
+    return `<li>${side ? "<b>" + esc(side) + "</b>" : ""}${field ? " · " + field : ""}${esc(line)}：${esc(e.message)}</li>`;
+  }).join("") + "</ul>";
+}
+
+function clearSuiteOutput() {
+  SUITE.id = null;
+  $("suite-summary").innerHTML = "";
+  $("suite-cases").innerHTML = "";
+  $("replay-case").innerHTML = "";
+  $("suite-errors").hidden = true;
+  $("suite-errors").innerHTML = "";
+  clearReplay();
+}
+
+async function genSuite() {
+  clearSuiteOutput();
+  const maxStates = parseInt($("max-states").value, 10);
+  let data;
+  try {
+    const resp = await fetch("/api/suite", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({old: readSpec("old"),
+                            maxStates: Number.isInteger(maxStates) ? maxStates : null})
+    });
+    data = await resp.json();
+  } catch (e) {
+    showSuiteErrors([{side: "-", field: "-", line: null, message: "接口调用失败：" + e}]);
+    return;
+  }
+  if (!data.ok) {
+    showSuiteErrors(data.errors || []);
+    return;
+  }
+  renderSuite(data.suite);
+}
+
+function renderSuite(s) {
+  SUITE.id = s.suiteId;
+  $("suite-summary").innerHTML =
+    `<p>套件标识 <code>${esc(s.suiteId)}</code> · 稳定状态数 ${s.stateCount} · 上界 ${s.maxStates} · ` +
+    `用例 ${s.caseCount} 个 · 区分后缀 ${s.distinguishing.length} 条` +
+    `${s.note ? " · " + esc(s.note) : ""}</p>`;
+  const stRows = s.states.map(st =>
+    `<tr><td>S${st.id}</td><td>${st.access.length ? st.access.map(c => "<code>?" + esc(c) + "</code>").join(" ") : "（初始闭包）"}</td>
+     <td>{ ${st.locations.map(esc).join(", ")} }</td></tr>`).join("");
+  const trRows = s.transitions.map(t =>
+    `<tr><td>S${t.from}</td><td><code>?${esc(t.cmd)}</code></td><td><code>${esc(t.obs)}</code></td><td>S${t.to}</td></tr>`).join("");
+  const wList = s.distinguishing.map(w =>
+    `<li>${w.map(c => "<code>?" + esc(c) + "</code>").join(" ")}</li>`).join("");
+  const cases = s.cases.map(c => {
+    const rounds = c.rounds.map((r, i) =>
+      `<li>第 ${i + 1} 轮 <code>?${esc(r.cmd)}</code> → 允许 ${r.allowed.map(o => `<code>${esc(o)}</code>`).join(" ")}</li>`).join("");
+    return `<h3>${esc(c.id)}</h3><ol class="hist">${rounds}</ol>`;
+  }).join("");
+  $("suite-cases").innerHTML =
+    `<h3>确定化稳定状态（访问序列与旧规程闭包）</h3>
+     <table><thead><tr><th>状态</th><th>访问序列</th><th>闭包位置</th></tr></thead><tbody>${stRows}</tbody></table>
+     <h3>迁移（命令 → 唯一可观察结果 → 后继）</h3>
+     <table><thead><tr><th>源</th><th>命令</th><th>观察</th><th>目标</th></tr></thead><tbody>${trRows}</tbody></table>
+     <h3>区分后缀</h3><ol class="hist">${wList || "<li>（单状态，无需区分）</li>"}</ol>
+     <h3>测试用例（稳定编号）</h3>${cases || "<p class='muted'>（空套件）</p>"}`;
+  $("replay-case").innerHTML = s.cases.map(c => `<option value="${esc(c.id)}">${esc(c.id)}</option>`).join("");
+}
+
+async function runReplay() {
+  clearReplay();
+  $("suite-errors").hidden = true;
+  $("suite-errors").innerHTML = "";
+  if (!SUITE.id) {
+    showSuiteErrors([{side: "-", field: "-", line: null, message: "请先生成测试套件"}]);
+    return;
+  }
+  const rounds = [];
+  const lines = $("replay-rounds").value.split("\n");
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = lines[idx].trim();
+    if (!line || line.startsWith("#")) continue;
+    const parts = line.split(/\s+/);
+    if (parts.length !== 2) {
+      showSuiteErrors([{side: "-", field: "rounds", line: idx + 1,
+        message: `第 ${idx + 1} 行格式应为：命令 观察（如 “?cmd δ” 或 “?cmd !ack”）`}]);
+      return;
+    }
+    rounds.push({cmd: parts[0], obs: parts[1]});
+  }
+  let data;
+  try {
+    const resp = await fetch("/api/replay", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({suiteId: SUITE.id, caseId: $("replay-case").value, rounds})
+    });
+    data = await resp.json();
+  } catch (e) {
+    showSuiteErrors([{side: "-", field: "-", line: null, message: "接口调用失败：" + e}]);
+    return;
+  }
+  if (!data.ok) {
+    showSuiteErrors(data.errors || []);
+    return;
+  }
+  renderReplay(data.replay);
+}
+
+function renderReplay(r) {
+  const box = $("replay-result");
+  box.hidden = false;
+  if (r.verdict === "pass") {
+    box.innerHTML = `<h2 class="ok">回放通过：用例 ${esc(r.caseId)} 全部 ${r.totalRounds} 轮均符合旧规程</h2>`;
+    return;
+  }
+  if (r.verdict === "incomplete") {
+    box.innerHTML = `<h2 class="warn">记录不完整：已核对 ${r.roundsChecked}/${r.totalRounds} 轮均符合，缺少后续 ${r.totalRounds - r.roundsChecked} 轮</h2>`;
+    return;
+  }
+  const f = r.firstFailure;
+  box.innerHTML = `<h2 class="bad">回放失败：首个失败轮次为第 ${f.round} 轮</h2>
+    <p>发送命令：<code>?${esc(f.cmd)}</code></p>
+    <p>允许观察：${f.expected.map(o => `<code>${esc(o)}</code>`).join(" ")}</p>
+    <p>实际收到：<code class="bad">${esc(f.observed)}</code></p>
+    <p>${esc(f.message)}</p>`;
+}
+
+$("gen-suite").addEventListener("click", genSuite);
+$("run-replay").addEventListener("click", runReplay);
+$("fill-suite").addEventListener("click", () => {
+  fill({locations: "S0 S1 S2 S3 S4", initial: "S0", inputs: "cmd reset",
+        transitions: "S0 -> S1 : ?cmd\nS1 -> S2 : tau\nS0 -> S3 : ?reset\nS3 -> S4 : !alarm"},
+       {locations: "", initial: "", inputs: "", transitions: ""});
+  $("max-states").value = "2";
+  $("replay-rounds").value = "?cmd δ";
+  clearSuiteOutput();
+});
 </script>
 </body>
 </html>
